@@ -61,38 +61,42 @@ public:
 	}
 private:
 	template<typename ...Args>
-	void ExecMsgHandler(MsgType msg, std::function<void(std::function<void()>)> func, Args... args) {
-		auto instHandler = GetMsgInstHandler(msg);
-		for (auto& handlerEntry : instHandler) {
-			std::pair<const InstID, std::any>& entry = handlerEntry;
-			auto& handler = entry.second;
-			auto fun = std::bind([&handler](Args... args) {
-				try {
-					auto func = std::any_cast<std::function<void(Args...)>>(handler);
-					func(args...);
-				}
-				catch (std::runtime_error) {
-					auto func = std::any_cast<std::function<void()>>(handler);
-					func();
-				}
-			}, args...);
-			func(fun);
+	void ExecMsgHandler(MsgType msg, std::function<void(std::function<void()>)> exec, Args... args) {
+		auto handlers = GetMsgHandler(msg, args...);
+		for (auto& handler : handlers) {
+			exec(handler);
 		}
 	}
-
-	std::vector<std::reference_wrapper<std::pair<const InstID, std::any>>> GetMsgInstHandler(MsgType msg) {
-		std::vector<std::reference_wrapper<std::pair<const InstID, std::any>>> ret;
+	template<typename ...Args>
+	std::vector<std::function<void()>> GetMsgHandler(MsgType msg, Args... args) {
+		std::vector<std::function<void()>> ret;
 		auto it = globalMsgHandler_.find(msg);
 		if (it != globalMsgHandler_.end()) {
 			PriorityMap& priorityMap = it->second;
 			for (auto& priorityEntry : priorityMap) {
 				HandlerMap& handlerMap = priorityEntry.second;
 				for (auto& handlerEntry : handlerMap) {
-					ret.push_back(handlerEntry);
+					std::any& a = handlerEntry.second;
+					auto handler = AnyCastToHandler(a, args...);
+					ret.emplace_back(handler);
 				}
 			}
 		}
 		return ret;
+	}
+	template<typename ...Args>
+	std::function<void()> AnyCastToHandler(std::any& a, Args... args) {
+		auto handler = std::bind([&a](Args... args) {
+			try {
+				auto func = std::any_cast<std::function<void(Args...)>>(a);
+				func(args...);
+			}
+			catch (std::runtime_error) {
+				auto func = std::any_cast<std::function<void()>>(a);
+				func();
+			}
+		}, args...);
+		return handler;
 	}
 private:
 	MsgHandler() = default;
