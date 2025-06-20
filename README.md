@@ -1,5 +1,6 @@
 A message bus framework based on C++, It can greatly accelerate C++ software development
-Here is a example
+
+Example.
 ```cpp
 #include "MsgHandler.h"
 #include <iostream>
