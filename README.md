@@ -1,12 +1,6 @@
-A message bus framework based on C++
-
-It can greatly accelerate C++ software development
-
-See unit test cpp for how to use it
-
-Here is a brief usage description
-
-```c
+A message bus framework based on C++, It can greatly accelerate C++ software development
+Here is a example
+```cpp
 #include "MsgHandler.h"
 #include <iostream>
 using namespace std;
