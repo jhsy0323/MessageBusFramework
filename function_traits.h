@@ -1,5 +1,5 @@
 #pragma once
-
+#include <functional>
 template<typename T>
 struct function_traits;
 
@@ -10,6 +10,9 @@ struct function_traits<R(*)(Args...)> {
 	using function_type = std::function<R(Args...)>;
 };
 
+template<typename R, typename... Args>
+struct function_traits<R(&)(Args...)> : function_traits<R(*)(Args...)> {};
+
 template<typename C, typename R, typename... Args>
 struct function_traits<R(C::*)(Args...)> : function_traits<R(*)(Args...)> {};
 
@@ -19,6 +22,20 @@ struct function_traits<R(C::*)(Args...)const> : function_traits<R(*)(Args...)> {
 template<typename T>
 struct function_traits : function_traits<decltype(&T::operator())> {};
 
+template <typename Obj, typename Func>
+typename std::enable_if<std::is_member_function_pointer<Func>::value, typename function_traits<Func>::function_type>::type to_std_function(Obj* obj, Func&& mem_func) {
+	return [obj, mem_func](auto&&... args) {
+		return (obj->*mem_func)(std::forward<decltype(args)>(args)...);
+	};
+}
+
+template <typename Obj, typename Func>
+typename std::enable_if<!std::is_member_function_pointer<Func>::value, typename function_traits<Func>::function_type>::type to_std_function(Obj*, Func&& func) {
+	return typename function_traits<Func>::function_type(
+		std::forward<Func>(func)
+	);
+}
+
 template<typename F>
 auto to_std_function(F&& f) {
 	using traits = function_traits<std::decay_t<F>>;
@@ -27,17 +44,4 @@ auto to_std_function(F&& f) {
 	return typename traits::function_type(std::forward<F>(f));
 }
 
-template<typename Obj, typename Ret, typename... Args>
-std::function<Ret(Args...)> wrap(Obj* obj, Ret(Obj::*mem_func)(Args...)) {
-	return [obj, mem_func](Args&&... args) -> Ret {
-		return (obj->*mem_func)(std::forward<Args>(args)...);
-	};
-}
-
-template<typename Obj, typename R, typename... Args>
-std::function<R(Args...)> wrap(Obj* obj, R(Obj::*mem_func)(Args...) const) {
-	return [obj, mem_func](Args&&... args) -> R {
-		return (obj->*mem_func)(std::forward<Args>(args)...);
-	};
-}
 #define WRAP_MEMBER(obj, func) wrap(obj, &std::remove_pointer_t<decltype(obj)>::func)
