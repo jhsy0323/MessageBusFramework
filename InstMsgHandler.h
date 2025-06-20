@@ -5,6 +5,7 @@
 #include <unordered_set>
 #include "any.h"
 #include "function_traits.h"
+#include "SupportAnyType.h"
 
 class InstMsgHandler {
 #ifdef _DEBUG
@@ -21,7 +22,7 @@ public:
 	}
 
 	template<typename ...Args>
-	void XTriggerMsg_(MsgType msg, InstID trigger, Args... args) {
+	void XTriggerMsg_(MsgType msg, InstID trigger, Args&&... args) {
 		auto findHandler = globalMsgHandler_.find(msg);
 		if (findHandler != globalMsgHandler_.end()) {
 			auto it = communicators_.find(trigger);
@@ -31,28 +32,15 @@ public:
 					auto handler = handlers.find(communicator);
 					if (handler != handlers.end()) {
 						auto& func = handler->second;
-						try {
-							std::any_cast<std::function<void(Args...)>>(func)(args...);
-						}
-						catch (std::runtime_error) {
-							std::any_cast<std::function<void()>>(func)();
-						}
+						wrap_to_std_fuction(func, std::forward<Args>(args)...)();
 					}
 				}
 			}
 		}
 	}
-	template<typename F>
-	void XRegisterMsgHandler_(MsgType msg, InstID t, F func) {
-		globalMsgHandler_[msg].emplace(t, to_std_function(func));
-	}
-	template<typename Obj, typename Ret, typename... Args>
-	void XRegisterMsgHandler_(MsgType msg, Obj* obj, Ret(Obj::*mem_func)(Args...)) {
-		globalMsgHandler_[msg].emplace(obj, wrap(obj, mem_func));
-	}
-	template<typename Obj, typename Ret, typename... Args>
-	void XRegisterMsgHandler_(MsgType msg, Obj* obj, Ret(Obj::*mem_func)(Args...) const) {
-		globalMsgHandler_[msg].emplace(obj, wrap(obj, mem_func));
+	template<typename Obj, typename F>
+	void XRegisterMsgHandler_(MsgType msg, Obj* obj, F&& func) {
+		globalMsgHandler_[msg].emplace(obj, to_std_function(obj, std::forward<F>(func)));
 	}
 	void XConnect_(InstID c1, InstID c2) {
 		if (c1 == c2) {
